@@ -1,0 +1,81 @@
+@startuml
+title "Serving static Resources (ee9)"
+
+participant httpclient as "[HTTP client]"
+participant DefaultServlet
+participant ResourceService
+participant CachedContentFactory
+participant ResourceContentFactory
+participant ResourceFactory
+participant Resource
+participant HttpOutput
+participant HttpContent
+participant CachedHttpContent
+
+autoactivate on
+
+httpclient->DefaultServlet: doGet
+    DefaultServlet->ResourceService: doGet
+        ResourceService->CachedContentFactory: getContent(pathInContext)
+            CachedContentFactory->CachedContentFactory: map.get(path)
+            return
+            alt if map does not contain cachedHttpContent
+                CachedContentFactory->ResourceFactory: newResource(path)
+                return
+                CachedContentFactory->CachedContentFactory: load(resource)
+                    CachedContentFactory->CachedHttpContent: new
+                        CachedHttpContent->CachedContentFactory: shrinkCache
+                        return
+                    return
+                return
+            else if ResourceFactory's resource does not exist
+                CachedContentFactory->ResourceContentFactory: getContent(path)
+                    ResourceContentFactory->ResourceFactory: newResource(path)
+                    return
+                    ResourceContentFactory->ResourceContentFactory: load(resource)
+                    return
+                return
+            end
+        return
+        ResourceService->ResourceService: sendData
+            ResourceService->ResourceService: writeContent
+                ResourceService->HttpContent: getBuffer
+                    note right
+                        if HttpContent instanceof CachedHttpContent
+                            this looks partially broken:
+                            mmaps the buffer, allocates an indirect one, a direct one,
+                            using BufferUtil.toBuffer(resource, direct) then throws them all
+                            away except the indirect one that is kept in an atomic reference.
+                            Also calls shrinkCache()
+
+                        if HttpContent instanceof ResourceHttpContent
+                            returns null
+                    end note
+                return
+                alt if buffer is not null
+                    alt if buffer is indirect
+                        ResourceService->HttpOutput: write(buffer.array())
+                    else
+                        loop using BufferUtil.writeTo
+                            ResourceService->ResourceService: buffer.get(4K)
+                            return
+                            ResourceService->HttpOutput: write(4K)
+                            return
+                        end
+                    end
+                else if buffer is null
+                    ResourceService->HttpContent: getResource().newInputStream()
+                    return
+                    loop using IO.copy
+                        ResourceService->ResourceService: inputStream.read(64K)
+                        return
+                        ResourceService->HttpOutput: write(64K)
+                        return
+                    end
+                end
+            return
+        return
+    return
+return
+
+@enduml

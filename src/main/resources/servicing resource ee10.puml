@@ -1,0 +1,74 @@
+@startuml
+title "Serving static Resources (ee10)"
+
+participant httpclient as "[HTTP client]"
+participant DefaultServlet
+participant ResourceService
+participant CachingContentFactory
+participant ResourceContentFactory
+participant ResourceFactory
+participant Resource
+participant Response
+participant HttpContent
+participant ContentWriterIteratingCallback
+
+autoactivate on
+
+httpclient->DefaultServlet: doGet
+    DefaultServlet->ResourceService: getContent(pathInContext)
+        ResourceService->CachingContentFactory: getContent(path)
+            CachingContentFactory->CachingContentFactory: map.get(path)
+            return
+            alt if map does not contain cachingHttpContent
+                CachingContentFactory->ResourceContentFactory: getContent(path)
+                    ResourceContentFactory->ResourceFactory: newResource(path)
+                        note right
+                            ResourceFactory is a wrapper over a ResourceCollection
+                            b/c of jetty-dir.css and favicon
+                        end note
+                        ResourceFactory->Resource: resolve(path)
+                        return
+                    return
+                return
+                CachingContentFactory->CachingContentFactory: newCachingHttpContent(nonCached)
+                    note right
+                        BufferUtil.toMappedBuffer(nonCachedHttpContent.getResource())
+                        or
+                        BufferUtil.toBuffer(nonCachedHttpContent.getResource())
+                    end note
+                    return
+                    CachingContentFactory->CachingContentFactory: map.put(path, cachingHttpContent)\nshrinkCache()
+                return
+            end
+        return
+    return
+    DefaultServlet->ResourceService: doGet(content)
+        ResourceService->ResourceService: sendData
+            ResourceService->HttpContent: getBuffer()
+            return
+            alt if buffer is not null
+                ResourceService->Response: write(buffer, true, blocking)
+                return
+                else if buffer is null
+                ResourceService->ContentWriterIteratingCallback: new()
+                    note right
+                        outputBufferSize and useOutputDirectByteBuffers are in
+                        getRequest().getConnectionMetaData().getHttpConfiguration()
+                    end note
+                    ContentWriterIteratingCallback->ContentWriterIteratingCallback: Files.newByteChannel(content.getResource().getPath())\nByteBuffer.allocate(outputBufferSize, useOutputDirectByteBuffers)
+                    return
+                return
+                ResourceService->ContentWriterIteratingCallback: iterate()
+                    loop using callback
+                        ContentWriterIteratingCallback->ContentWriterIteratingCallback: channel.read(buffer)
+                        return
+                        ContentWriterIteratingCallback->Response: write(buffer, false, this)
+                        return
+                    end
+                return
+            end alt
+        return
+    return
+return
+
+@enduml

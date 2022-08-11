@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/theme/solarized.css" id="theme">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/highlight/monokai.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+
+        <section data-markdown>
+          <script type="text/template">
+## Choice of buffer type
+* This is controlled with Init Parameters
+  - `maxCacheSize`, `maxCachedFileSize` and `maxCachedFiles`
+  - `useFileMappedBuffer`
+---
+## Choice of buffer type
+`maxCacheSize`, `maxCachedFileSize` and `maxCachedFiles`
+* All unset by default
+* Setting any of them will enable caching
+* Direct `ByteBuffer`s are allocated an the cached resource copied into them
+* Every time a new `ByteBuffer` is allocated, a maximum resource check is performed
+  - This may make the GC churn through a lot of allocated `ByteByffer`s
+---
+## Choice of buffer type
+`useFileMappedBuffer`
+* `false` by default
+* Enabling it has no effect if caching isn't alredy enabled with `maxCacheSize`, `maxCachedFileSize` and `maxCachedFiles`
+* Replaces allocated direct `ByteBuffer`s with mmap'ed direct `ByteBuffer`s
+* Every time a new `ByteBuffer` is allocated, a maximum resource check is performed
+  - This may make the GC churn through a lot of mmap'ed `ByteByffer`s
+  - The JVM process may run out of file descriptors if too many files are mmap'ed
+---
+## Content copying
+* Cached `HttpContent` is backed by a `ByteBuffer`
+* Non-cached `HttpContent` has a `null` buffer
+---
+## Content copying (cached)
+Cached `HttpContent` is served with a single call to `write(boolean last, ByteBuffer byteBuffer, Callback callback)`
+---
+## Content copying (non-cached)
+* Non-cached `HttpContent` is served with a `IteratingCallback` that contains an internal buffer.
+* The iterating CB reads the `HttpContent`'s resource's `Path`'s `ReadableByteChannel` one chunk the size of the internal buffer at a time and writes it
+
+          </script>
+        </section>
+
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/markdown/markdown.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/highlight/highlight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/math/math.js"></script>
+    <script>
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+        plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealMath.KaTeX ]
+      });
+    </script>
+  </body>
+</html>

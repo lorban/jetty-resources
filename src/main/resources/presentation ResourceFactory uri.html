@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/theme/solarized.css" id="theme">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/highlight/monokai.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+
+        <section data-markdown>
+          <script type="text/template">
+## URI / Resource creation
+Plain filesystem
+```java
+URI uri = URI.create("file:///some/path/");
+Resource resource = ResourceFactory.root().newResource(uri);
+```
+Requires no mounting, can safely use `root()`.
+---
+## URI / Resource creation
+JAR file - wrong
+```java
+URI uri = URI.create("jar:file:///some/path/file.jar!/");
+Resource resource = ResourceFactory.root().newResource(uri);
+```
+Requires mounting, using `root()` will leak the mount and emit a warning.
+---
+## URI / Resource creation
+JAR file - correct option #1
+```java
+URI uri = URI.create("jar:file:///some/path/file.jar!/");
+try (ResourceFactory.Closeable resourceFactory =
+        ResourceFactory.closeable())
+{
+  Resource resource = resourceFactory.newResource(uri);
+} // unmounting happens here
+```
+Using a `ResourceFactory.closeable()` unmounting happens when the resource factory is closed
+---
+## URI / Resource creation
+JAR file - correct option #2
+```java
+Container container = ...;
+URI uri = URI.create("jar:file:///some/path/file.jar!/");
+ResourceFactory.Lifecycle resourceFactory =
+        ResourceFactory.lifecycle();
+container.addBean(resourceFactory, true);
+Resource resource = resourceFactory.newResource(uri);
+```
+Using `ResourceFactory.Lifecycle` unmounting happens during the resource factory's Stopped lifecycle event
+---
+## URI / Resource creation
+JAR file - correct option #3
+```java
+Container container = ...;
+URI uri = URI.create("jar:file:///some/path/file.jar!/");
+Resource resource =
+        ResourceFactory.of(container).newResource(uri);
+```
+Using `ResourceFactory.of(container)` binds unmounting to the container's Stopped lifecycle event
+Shortcut of option #2
+---
+## URI / Resource creation
+Using `Path` instead of `URI`
+```java
+Path path = Path.of("/some/path/file.txt")
+Resource resource = ResourceFactory.root().newResource(path);
+```
+Uses `Path.toUri()` internally to transform `Path` into a `URI`
+---
+## URI / Resource creation
+Using `String` instead of `URI`
+```java
+Resource resource = ResourceFactory.root()
+        .newResource("file:///some/path/file.txt");
+```
+Uses `URIUtil.toURI(String)` internally to transform `String` into a `URI`
+---
+## URI / Resource creation
+JAR URI tips
+```java
+URI fileUri = URI.create("file:///some/path/file.jar");
+URI jarFileUri = URIUtil.toJarFileUri(fileUri);
+// jarFileUri is "jar:file:///some/path/file.jar!/"
+Resource resource =
+        ResourceFactory.of(container).newResource(jarFileUri);
+```
+Transforming a URI that points to a JAR file into a URI that points to the contents of the JAR file
+
+Plenty other helpers in `URIUtil`
+          </script>
+        </section>
+
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/markdown/markdown.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/highlight/highlight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.3.1/plugin/math/math.js"></script>
+    <script>
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+        plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealMath.KaTeX ]
+      });
+    </script>
+  </body>
+</html>
